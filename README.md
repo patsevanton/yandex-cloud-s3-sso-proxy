@@ -11,35 +11,32 @@ Yandex Object Storage (S3)
 
 ## Необходимые компоненты
 
-1. Keycloak - сервер SSO
-2. oauth2-proxy - прокси для аутентификации OAuth2
-3. Nginx - обратный прокси и балансировщик нагрузки
+Для реализации решения вам понадобятся три ключевых компонента:
+Keycloak (сервер SSO), oauth2-proxy (прокси для аутентификации OAuth2) и Nginx (обратный прокси и балансировщик нагрузки), обеспечивающие безопасный доступ к Yandex Object Storage.
 
 ## Шаг 1: Настройка Keycloak
 
-1. Создайте новый клиент в Keycloak:
-   - Client ID: `s3-proxy`
-   - Client Protocol: `openid-connect`
-   - Access Type: `confidential`
-   - Valid Redirect URIs: `https://s3.yourdomain.com/oauth2/callback`
-   - Web Origins: `https://s3.yourdomain.com`
+Создайте новый клиент в Keycloak:
+- Client ID: `s3-proxy`
+- Client Protocol: `openid-connect`
+- Access Type: `confidential`
+- Valid Redirect URIs: `https://s3.yourdomain.com/oauth2/callback`
+- Web Origins: `https://s3.yourdomain.com`
 
-2. Создайте роли для разных уровней доступа:
-   - `s3-reader` - только чтение
-   - `s3-writer` - чтение и запись
-   - `s3-admin` - полный доступ
+Создайте роли для пользователей:
+- `s3-admin` - полный доступ (storage.editor).
 
-3. Назначьте роли пользователям или группам
+Назначьте эти роли пользователям или группам в соответствии с необходимыми правами доступа.
 
 ## Шаг 2: Настройка oauth2-proxy
 
-Конфигурационный файл `oauth2-proxy.cfg`:
+Используйте базу из [helm чарта oauth2-proxy](https://github.com/oauth2-proxy/manifests/tree/main/helm/oauth2-proxy) для настройки. Конфигурационный файл `oauth2-proxy.cfg` должен выглядеть следующим образом:
 
 ```ini
 ## Общие настройки
 http_address = "0.0.0.0:4180"
 upstreams = [
-    "http://localhost:4181" # Nginx будет слушать на этом порту для S3
+    "http://localhost:4181"
 ]
 
 ## Настройки провайдера OIDC
@@ -70,7 +67,7 @@ set_xauthrequest = true
 
 ## Шаг 3: Настройка Nginx
 
-Конфигурация Nginx `nginx.conf`:
+Конфигурация Nginx `nginx.conf` будет следующей:
 
 ```nginx
 upstream s3_backend {
@@ -139,8 +136,7 @@ server {
         
         add_header Set-Cookie $auth_cookie;
 
-        # Проверка ролей
-        if ($http_x_auth_request_user !~* "s3-reader|s3-writer|s3-admin") {
+        if ($http_x_auth_request_user !~* "s3-admin") {
             return 403;
         }
 
@@ -151,79 +147,20 @@ server {
 
 ## Шаг 4: Настройка политик доступа в Yandex Object Storage
 
-1. Создайте сервисный аккаунт в Yandex Cloud
-2. Назначьте роли сервисному аккаунту:
-   - `storage.editor` - для полного доступа
-   - `storage.viewer` - для доступа только на чтение
-
-3. Создайте статические ключи доступа для сервисного аккаунта
-
-4. Настройте бакетные политики (если нужно разграничение на уровне бакетов)
+Создайте сервисный аккаунт в Yandex Cloud и назначьте ему роль `storage.editor` для полного доступа. Создайте статические ключи доступа для этого аккаунта и настройте политик доступа при необходимости.
 
 ## Шаг 5: Запуск системы
 
-1. Запустите oauth2-proxy:
+Запустите oauth2-proxy следующим образом:
 ```bash
 oauth2-proxy --config=./oauth2-proxy.cfg
 ```
 
-2. Запустите Nginx:
+Запустите Nginx:
 ```bash
 nginx -c /path/to/your/nginx.conf
 ```
 
-## Дополнительные настройки
-
-### Динамическое ограничение доступа на основе ролей
-
-Модифицируйте конфигурацию Nginx для проверки ролей:
-
-```nginx
-location / {
-    auth_request /oauth2/auth;
-    error_page 401 = /oauth2/sign_in;
-
-    # Проверка ролей для разных типов запросов
-    if ($request_method = PUT) {
-        set $role_check "s3-writer s3-admin";
-    }
-    if ($request_method = POST) {
-        set $role_check "s3-writer s3-admin";
-    }
-    if ($request_method = DELETE) {
-        set $role_check "s3-admin";
-    }
-
-    # Проверка наличия нужной роли
-    if ($http_x_auth_request_user !~* $role_check) {
-        return 403;
-    }
-
-    proxy_pass http://localhost:4181;
-}
-```
-
-### Логирование
-
-Добавьте в конфигурацию oauth2-proxy:
-```ini
-logging_filename = "/var/log/oauth2-proxy/oauth2-proxy.log"
-logging_max_size = 10
-logging_max_age = 7
-logging_max_backups = 3
-request_logging = true
-```
-
 ## Заключение
 
-Эта конфигурация позволяет:
-1. Аутентифицировать пользователей через Keycloak
-2. Проверять их роли перед доступом к S3
-3. Ограничивать операции (чтение/запись) на основе ролей
-4. Логировать все запросы
-
-Для production окружения рекомендуется:
-- Настроить мониторинг
-- Добавить балансировщик нагрузки
-- Реализовать автоматическое масштабирование
-- Настроить резервное копирование конфигураций
+Данная конфигурация позволяет аутентифицировать пользователей через Keycloak и проверять их роли, обеспечивая доступ к Yandex Object Storage на основе предоставленных прав. Рекомендуется проводить тестирование и обеспечить соблюдение правил безопасности в вашем окружении.
