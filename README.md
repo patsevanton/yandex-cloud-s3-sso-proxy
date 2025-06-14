@@ -48,9 +48,9 @@ services:
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak_password
       KC_HOSTNAME: keycloak.yourdomain.com
-      KC_HOSTNAME_STRICT: false
-      KC_HOSTNAME_STRICT_HTTPS: false
-      KC_HTTP_ENABLED: true
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
       KC_PROXY: edge
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin_password
@@ -72,13 +72,13 @@ services:
       OAUTH2_PROXY_OIDC_ISSUER_URL: http://keycloak:8080/realms/yandex-s3
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"
       OAUTH2_PROXY_COOKIE_SECRET: your-cookie-secret-32-bytes-long!!!
-      OAUTH2_PROXY_COOKIE_SECURE: false
+      OAUTH2_PROXY_COOKIE_SECURE: "false"
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_UPSTREAMS: http://nginx:80
-      OAUTH2_PROXY_PASS_ACCESS_TOKEN: true
-      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: true
-      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: true
-      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: true
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
     networks:
       - keycloak-network
     depends_on:
