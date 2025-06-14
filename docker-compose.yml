@@ -21,40 +21,32 @@ services:
     container_name: keycloak
     image: quay.io/keycloak/keycloak:26.0.7
     environment:
-      # Настройка прокси для работы за обратным прокси
       KC_PROXY: edge
-      # Данные администратора (KC_BOOTSTRAP_* - более новый формат)
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      # Настройки хоста и портов
       KC_HOSTNAME: localhost
-      KC_HOSTNAME_STRICT: "false"           # Отключает строгую проверку hostname
-      KC_HOSTNAME_STRICT_HTTPS: "false"     # Разрешает HTTP соединения
-      KC_HOSTNAME_PORT: 8080                # Порт для внешних соединений
-      # Включение HTTP и отключение HTTPS для dev-режима
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HOSTNAME_PORT: 8080
       KC_HTTP_ENABLED: 'true'
-      # Включение эндпоинтов мониторинга
-      KC_HEALTH_ENABLED: 'true'             # Включает health check эндпоинты
-      KC_METRICS_ENABLED: 'true'            # Включает метрики Prometheus
-      # Уровень логирования
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'true'
       KC_LOG_LEVEL: INFO
-      # Настройки подключения к PostgreSQL
-      KC_DB: postgres                       # Тип базы данных
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak  # URL подключения к БД
-      KC_DB_USERNAME: keycloak              # Пользователь БД
-      KC_DB_PASSWORD: keycloak_password     # Пароль БД
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_password
     depends_on:
       postgres:
-        condition: service_healthy          # Ждет готовности PostgreSQL
+        condition: service_healthy
     healthcheck:
-      # Проверка доступности через health endpoint
       test: ['CMD-SHELL', '[ -f /tmp/HealthCheck.java ] || echo "public class HealthCheck { public static void main(String[] args) throws java.lang.Throwable { System.exit(java.net.HttpURLConnection.HTTP_OK == ((java.net.HttpURLConnection)new java.net.URL(args[0]).openConnection()).getResponseCode() ? 0 : 1); } }" > /tmp/HealthCheck.java && java /tmp/HealthCheck.java http://localhost:9000/health/live']
-      interval: 5s                          # Интервал проверки
-      timeout: 5s                           # Таймаут проверки
-      retries: 30                           # Количество попыток
-    command: ['start-dev', '--http-port', '8080'] # Запуск в dev-режиме на порту 8080
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    command: ['start-dev', '--http-port', '8080']
     ports:
-      - 8080:8080                           # Проброс порта для веб-интерфейса
+      - 8080:8080
     networks:
       - keycloak-network
 
