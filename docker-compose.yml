@@ -1,8 +1,7 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:15
+    container_name: postgres
+    image: postgres:16
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -11,30 +10,60 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - keycloak-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   keycloak:
-    image: quay.io/keycloak/keycloak:22.0
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:26.0.7
     environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak_password
-      KC_HOSTNAME: keycloak.yourdomain.com
-      KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
-      KC_HTTP_ENABLED: "true"
       KC_PROXY: edge
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin_password
-    command: start-dev
-    ports:
-      - "8080:8080"
+
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HOSTNAME_PORT: 8080
+      KC_HOSTNAME_STRICT_BACKCHANNEL: 'true'
+      KC_HOSTNAME_STRICT_FRONTCHANNEL: 'true'
+      KC_HTTP_ENABLED: 'true'
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'true'
+      KC_HTTP_METRICS_HISTOGRAMS_ENABLED: 'true'
+      KC_CACHE_METRICS_HISTOGRAMS_ENABLED: 'true'
+      KC_LOG_LEVEL: INFO
+      KC_DB: postgres
+      KC_DB_VENDOR: postgres
+      KC_DB_SCHEMA: public
+      KC_DB_HOST: postgresHost
+      KC_DB_PORT: 5432
+      KC_DB_NAME: keycloakDB
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_password
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', '[ -f /tmp/HealthCheck.java ] || echo "public class HealthCheck { public static void main(String[] args) throws java.lang.Throwable { System.exit(java.net.HttpURLConnection.HTTP_OK == ((java.net.HttpURLConnection)new java.net.URL(args[0]).openConnection()).getResponseCode() ? 0 : 1); } }" > /tmp/HealthCheck.java && java /tmp/HealthCheck.java http://localhost:9000/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    command: ['start-dev', '--http-port', '8080']
+    ports:
+      - 8080:8080
     networks:
       - keycloak-network
 
   oauth2-proxy:
+    container_name: oauth2-proxy
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.5.0
     environment:
       OAUTH2_PROXY_PROVIDER: keycloak-oidc
@@ -43,7 +72,7 @@ services:
       OAUTH2_PROXY_REDIRECT_URL: https://yourdomain.com/oauth2/callback
       OAUTH2_PROXY_OIDC_ISSUER_URL: http://keycloak:8080/realms/yandex-s3
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"
-      OAUTH2_PROXY_COOKIE_SECRET: your-cookie-secret-32-bytes-long!!!
+      OAUTH2_PROXY_COOKIE_SECRET: your-cookie-secret-32-bytes-long
       OAUTH2_PROXY_COOKIE_SECURE: "false"
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_UPSTREAMS: http://nginx:80
@@ -54,9 +83,17 @@ services:
     networks:
       - keycloak-network
     depends_on:
-      - keycloak
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4180/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   nginx:
+    container_name: nginx
     image: nginx:alpine
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
@@ -67,7 +104,14 @@ services:
     networks:
       - keycloak-network
     depends_on:
-      - oauth2-proxy
+      oauth2-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   postgres_data:
