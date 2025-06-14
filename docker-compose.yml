@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - keycloak-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_password
+      KC_HOSTNAME: keycloak.yourdomain.com
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_HTTP_ENABLED: true
+      KC_PROXY: edge
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin_password
+    command: start-dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - keycloak-network
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.5.0
+    environment:
+      OAUTH2_PROXY_PROVIDER: keycloak-oidc
+      OAUTH2_PROXY_CLIENT_ID: yandex-s3-client
+      OAUTH2_PROXY_CLIENT_SECRET: your-client-secret
+      OAUTH2_PROXY_REDIRECT_URL: https://yourdomain.com/oauth2/callback
+      OAUTH2_PROXY_OIDC_ISSUER_URL: http://keycloak:8080/realms/yandex-s3
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_COOKIE_SECRET: your-cookie-secret-32-bytes-long!!!
+      OAUTH2_PROXY_COOKIE_SECURE: false
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_UPSTREAMS: http://nginx:80
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: true
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: true
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: true
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: true
+    networks:
+      - keycloak-network
+    depends_on:
+      - keycloak
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - keycloak-network
+    depends_on:
+      - oauth2-proxy
+
+volumes:
+  postgres_data:
+
+networks:
+  keycloak-network:
+    driver: bridge
