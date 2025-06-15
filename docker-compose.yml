@@ -24,7 +24,7 @@ services:
       KC_PROXY: edge
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: localhost
+      KC_HOSTNAME: keycloak
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HOSTNAME_PORT: 8080
@@ -36,6 +36,9 @@ services:
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak_password
+      # Добавляем настройки для правильной работы с внутренними Docker-соединениями
+      KC_HOSTNAME_ADMIN: keycloak
+      KC_PROXY_HEADERS: xforwarded
     volumes:
       - ./keycloak-realm.json:/opt/keycloak/data/import/realm.json
     depends_on:
@@ -50,7 +53,9 @@ services:
     ports:
       - 8080:8080
     networks:
-      - keycloak-network
+      keycloak-network:
+        aliases:
+          - keycloak
 
   oauth2-proxy:
     container_name: oauth2-proxy
@@ -70,6 +75,9 @@ services:
       OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
       OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      # Добавляем настройку для игнорирования несоответствия issuer
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
+      OAUTH2_PROXY_OIDC_ISSUER_URL_VALIDATION: "false"
     networks:
       - keycloak-network
     depends_on:

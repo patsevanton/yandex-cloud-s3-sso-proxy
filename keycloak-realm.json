@@ -9,12 +9,18 @@
       "secret": "your-client-secret",
       "redirectUris": [
         "https://yourdomain.com/oauth2/callback",
-        "http://localhost:4180/oauth2/callback"
+        "http://localhost:4180/oauth2/callback",
+        "http://keycloak:8080/*"
       ],
       "protocol": "openid-connect",
       "publicClient": false,
       "standardFlowEnabled": true,
-      "serviceAccountsEnabled": true
+      "serviceAccountsEnabled": true,
+      "webOrigins": [
+        "http://keycloak:8080",
+        "http://localhost:8080",
+        "https://yourdomain.com"
+      ]
     }
   ],
   "users": [
