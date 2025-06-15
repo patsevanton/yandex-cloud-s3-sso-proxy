@@ -36,6 +36,8 @@ services:
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak_password
+    volumes:
+      - ./keycloak-realm.json:/opt/keycloak/data/import/realm.json
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,7 +46,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
-    command: ['start-dev', '--http-port', '8080']
+    command: ['start-dev', '--http-port', '8080', '--import-realm']
     ports:
       - 8080:8080
     networks:
