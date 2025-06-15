@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3-ui
+  namespace: default
+  labels:
+    app: s3-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: s3-ui
+  template:
+    metadata:
+      labels:
+        app: s3-ui
+    spec:
+      containers:
+        - name: s3-browser
+          image: filebrowser/filebrowser:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+            - name: S3_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: s3-ui-config
+                  key: S3_ENDPOINT
+            - name: S3_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: s3-ui-config
+                  key: S3_REGION
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: s3-ui-config
+                  key: S3_BUCKET
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+          command: ["/filebrowser"]
+          args:
+            - "--config"
+            - "/config/filebrowser.json"
+            - "--database"
+            - "/config/database.db"
+      volumes:
+        - name: config-volume
+          emptyDir: {}
