@@ -36,9 +36,11 @@ services:
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak_password
-      # Добавляем настройки для правильной работы с внутренними Docker-соединениями
-      KC_HOSTNAME_ADMIN: keycloak
+      # Исправляем настройки hostname
+      KC_HOSTNAME_ADMIN_URL: http://keycloak:8080
       KC_PROXY_HEADERS: xforwarded
+      # Дополнительные настройки для development режима
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
     volumes:
       - ./keycloak-realm.json:/opt/keycloak/data/import/realm.json
     depends_on:
