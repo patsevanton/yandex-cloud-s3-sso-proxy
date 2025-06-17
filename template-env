@@ -1,0 +1,12 @@
+# Yandex Cloud S3 credentials
+S3_ACCESS_KEY="YS3_ACCESS_KEY"
+S3_SECRET_KEY="S3_SECRET_KEY"
+S3_ENDPOINT=https://storage.yandexcloud.net
+S3_REGION=ru-central1
+
+# UI credentials
+ADMIN_USERNAME=ADMIN_USERNAME
+ADMIN_PASSWORD=ADMIN_PASSWORD
+
+# Bucket name (замените на ваш bucket)
+S3_BUCKET_NAME=S3_BUCKET_NAME

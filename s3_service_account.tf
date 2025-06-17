@@ -1,3 +1,6 @@
+# Получаем информацию о конфигурации клиента Yandex
+data "yandex_client_config" "client" {}
+
 # Создание сервисного аккаунта в Yandex IAM
 resource "yandex_iam_service_account" "sa-s3" {
   # Имя сервисного аккаунта

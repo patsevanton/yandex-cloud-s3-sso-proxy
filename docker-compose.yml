@@ -1,119 +1,67 @@
 services:
-  postgres:
-    container_name: postgres
-    image: postgres:16
+  minio-client:
+    image: docker.io/bitnami/minio-client:latest
+    container_name: minio-client
     environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak_password
+      MINIO_SERVER_ACCESS_KEY: "MINIO_SERVER_ACCESS_KEY"
+      MINIO_SERVER_SECRET_KEY: "MINIO_SERVER_SECRET_KEY"
+      MINIO_SERVER_HOST: storage.yandexcloud.net
+      MINIO_SERVER_PORT_NUMBER: 443
+      MINIO_SERVER_USE_SSL: "true"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./s3-config:/opt/bitnami/minio-client/.mc
     networks:
-      - keycloak-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
-      interval: 10s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
+      - s3-network
 
-  keycloak:
-    container_name: keycloak
-    image: quay.io/keycloak/keycloak:26.0.7
-    environment:
-      KC_PROXY: edge
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: keycloak
-      KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
-      KC_HOSTNAME_PORT: 8080
-      KC_HTTP_ENABLED: 'true'
-      KC_HEALTH_ENABLED: 'true'
-      KC_METRICS_ENABLED: 'true'
-      KC_LOG_LEVEL: INFO
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak_password
-      KC_HOSTNAME_ADMIN_URL: http://keycloak:8080
-      KC_PROXY_HEADERS: xforwarded
-      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
-    volumes:
-      - ./keycloak-realm.json:/opt/keycloak/data/import/realm.json
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD-SHELL', '[ -f /tmp/HealthCheck.java ] || echo "public class HealthCheck { public static void main(String[] args) throws java.lang.Throwable { System.exit(java.net.HttpURLConnection.HTTP_OK == ((java.net.HttpURLConnection)new java.net.URL(args[0]).openConnection()).getResponseCode() ? 0 : 1); } }" > /tmp/HealthCheck.java && java /tmp/HealthCheck.java http://localhost:9000/health/live']
-      interval: 5s
-      timeout: 5s
-      retries: 30
-    command: ['start-dev', '--http-port', '8080', '--import-realm']
+  # FileBrowser для работы с S3 как с файловой системой
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: s3-filebrowser
     ports:
-      - 8080:8080
-    networks:
-      keycloak-network:
-        aliases:
-          - keycloak
-
-  oauth2-proxy:
-    container_name: oauth2-proxy
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.5.0
+      - "8081:80"
     environment:
-      OAUTH2_PROXY_PROVIDER: keycloak-oidc
-      OAUTH2_PROXY_CLIENT_ID: yandex-s3-client
-      OAUTH2_PROXY_CLIENT_SECRET: your-client-secret
-      OAUTH2_PROXY_REDIRECT_URL: https://yourdomain.com/oauth2/callback
-      OAUTH2_PROXY_OIDC_ISSUER_URL: http://keycloak:8080/realms/yandex-s3
-      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
-      OAUTH2_PROXY_COOKIE_SECRET: your-cookie-secret-32-bytes-long
-      OAUTH2_PROXY_COOKIE_SECURE: "false"
-      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
-      OAUTH2_PROXY_UPSTREAMS: http://nginx:80
-      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
-      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
-      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
-      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
-      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
-      OAUTH2_PROXY_OIDC_ISSUER_URL_VALIDATION: "false"
-    networks:
-      - keycloak-network
-    depends_on:
-      keycloak:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4180/ping || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  nginx:
-    container_name: nginx
-    image: nginx:alpine
+      FB_DATABASE: /database/filebrowser.db
+      FB_CONFIG: /config/settings.json
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-    ports:
-      - "80:80"
-      - "443:443"
+      - ./filebrowser-config:/config
+      - ./filebrowser-db:/database
+      - s3_mount:/srv
     networks:
-      - keycloak-network
-    depends_on:
-      oauth2-proxy:
-        condition: service_healthy
-    # Изменяем healthcheck для лучшей диагностики
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:80/health || curl -f http://localhost:80/ || nginx -t"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      - s3-network
+
+  # S3 FUSE mount для монтирования как обычной файловой системы
+  s3fs:
+    image: alpine:latest
+    container_name: s3fs-mount
+    privileged: true
+    environment:
+      AWS_ACCESS_KEY_ID: access_key
+      AWS_SECRET_ACCESS_KEY: secret_key
+      S3_BUCKET: your-bucket-name
+      S3_URL: https://storage.yandexcloud.net
+    volumes:
+      - s3_mount:/mnt/s3
+      - ./s3fs-config:/etc/passwd-s3fs:ro
+    command: |
+      sh -c "
+        apk add --no-cache s3fs-fuse &&
+        echo 'access_key:secret_key' > /etc/passwd-s3fs &&
+        chmod 600 /etc/passwd-s3fs &&
+        s3fs your-bucket-name /mnt/s3 -o passwd_file=/etc/passwd-s3fs,url=https://storage.yandexcloud.net,use_path_request_style,allow_other &&
+        tail -f /dev/null
+      "
+    restart: unless-stopped
+    networks:
+      - s3-network
+    profiles:
+      - s3fs
 
 volumes:
-  postgres_data:
+  minio_data:
+    driver: local
+  s3_mount:
+    driver: local
 
 networks:
-  keycloak-network:
+  s3-network:
     driver: bridge
